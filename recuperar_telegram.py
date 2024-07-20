@@ -1,35 +1,49 @@
 import pymongo
 from telethon import TelegramClient
+import hashlib
 
-# Lista de los nombres de los canales que deseamos descargar.
-canales = ["xxxxxxxxxxxx", "xxxxxxxxxxxxxxxxxxx", "xxxxxxxxxxxxxxxxxxxxxxxxx"]
+def generar_id(fecha, mensaje):
+    if fecha is None:
+        id = hashlib.sha512(mensaje.encode()).hexdigest()
+    elif mensaje is None:
+        id = hashlib.sha512(fecha.encode()).hexdigest()    
+    elif mensaje is None and fecha is None:
+        id = None        
+    else:
+        combinacion_entrada = fecha + mensaje
+        id = hashlib.sha512(combinacion_entrada.encode()).hexdigest() 
+    return id
 
-# Valores para configurar la aplicación del cliente de Telegram.
-api_id = 'xxxxxxxxxxxxxxxxxxxxx'
-api_hash = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-# Número de teléfono y nombre de usuario del canal que deseamos conectar a.
-phone_number = '+xxxxxxxxxxxxxxxxx'
+# Lista de canales a recuperar.
+#canales = ["xxxxx", "xxxxxx", "xxxxxxx", "xxxxxxx", "xxxxxxx"]
+canales = ["xxxxxx", "xxxxxxx"]
 
-# Inicializa un cliente de Telegram.
+
+# Sustituye estos valores con los datos de tu aplicación.
+api_id = 'xxxxxx'
+api_hash = 'xxxxxxxx'
+
+
+# Sustituye estos valores con tu número de teléfono y el nombre de usuario del canal.
+phone_number = '+xxxxxxxxx'
+
+
+# Crear una instancia del cliente
 client = TelegramClient('session_name', api_id, api_hash)
 
-# Dirección y puerto donde se encuentra la base de datos MongoDB en el que almacenaremos los mensajes
+
+#Base de datos donde guaradr los resultados
 equipo = "x.x.x.x"
 puerto = "27017"
 
+
 def insertar_mensaje(mensaje, channel_username):
-    """
-    Esta función recibe un mensaje y el nombre del canal como parámetros.
-    Intenta insertar el mensaje en la base de datos MongoDB en una colección llamada "mensajes"
-    que se encuentra en una base de datos con el mismo nombre que el canal.
-    Si hay un error, imprime la excepción. Cierre la conexión a la base de datos finalmente.
-    """
     try:
         client = pymongo.MongoClient(f"mongodb://{equipo}:{puerto}/")
-        db = client[channel_username]
-        col = db["mensajes"]
-        col.insert_one(mensaje)
+        db = client["telegram"]
+        col = db[channel_username]
+        col.insert_one(mensaje)    
     except Exception as e:
         print(e)
     finally:
@@ -37,27 +51,24 @@ def insertar_mensaje(mensaje, channel_username):
 
 
 async def main():
-    """
-    Inicia la conexión con Telegram, imprime que está conectado y luego itera a través de cada canal en nuestra lista.
-    Para cada canal, obtiene la entidad del canal usando el método 'get_entity', lo que nos permite interactuar directamente con él.
-
-    A continuación, usa iter_messages para recoger los mensajes del canal. Los parámetros indican que queremos descargar todos los mensajes.
-    Luego, imprime la información del mensaje y ejecuta la función 'insertar_mensaje' para almacenarlo en MongoDB.
-    """
     await client.start(phone_number)
-    print("Conectado a Telegram")
-
+    print("Conectado a Telegram...")
     for channel_username in canales:
         # Obtener la entidad del canal
         channel = await client.get_entity(channel_username)
-
-        async for message in client.iter_messages(channel, limit=10):
-            print(message.sender_id, message.text)
-
-            mensaje = {"_id": message.text, "fecha": message.date}
-
-            insertar_mensaje(mensaje, channel_username)
-
-# Finalmente se ejecuta el cliente
+        
+        # Obtener los mensajes del canal
+        async for message in client.iter_messages(channel, limit=100000000000000):  # Obtiene los últimos xxxxxxxx mensajes
+            try:
+                #print(message.sender_id, message.text)
+                #print(message.sender_id)
+                print(message.id, channel_username)            
+                mensaje = {"_id": message.id, "fecha": message.date, "mensaje": message.text}          
+                insertar_mensaje(mensaje, channel_username)
+            except Exception as e:
+                print(e)
+                pass
+            
+# Ejecutar el cliente
 with client:
     client.loop.run_until_complete(main())
